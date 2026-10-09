@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PEA ⚡ ระบบสำรวจหม้อมิเตอร์</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#1a0b2e;--panel:#2a1250;--line:#5b2d8e;--gold:#ffc20e;--text:#fff;--mut:#b9a6d6;--ok:#3ddc84;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans Thai","Sarabun",system-ui,sans-serif;background-image:repeating-linear-gradient(135deg,transparent 0 22px,rgba(255,194,14,.04) 22px 24px)}
+header{background:linear-gradient(110deg,#4a1a85,#7a2fc4 60%,#4a1a85);border-bottom:4px solid var(--gold);padding:14px 16px;display:flex;align-items:center;gap:12px;clip-path:polygon(0 0,100% 0,100% 82%,97% 100%,0 100%)}
+header svg{width:44px;height:44px;filter:drop-shadow(0 0 8px var(--gold))}
+h1{margin:0;font-size:20px;letter-spacing:.5px;font-weight:900;text-transform:uppercase}
+h1 small{display:block;color:var(--gold);font-size:12px;font-weight:600;letter-spacing:2px}
+main{max-width:820px;margin:0 auto;padding:14px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--panel);border-left:5px solid var(--gold);padding:8px 10px;clip-path:polygon(0 0,100% 0,100% 70%,92% 100%,0 100%)}
+.stat b{display:block;font-size:24px;color:var(--gold)}.stat span{font-size:12px;color:var(--mut)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+button{font:inherit;font-weight:800;border:0;color:#1a0b2e;background:var(--gold);padding:10px 14px;cursor:pointer;clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);text-transform:uppercase;letter-spacing:.3px}
+button.alt{background:#7a2fc4;color:#fff}button.dk{background:#3a1a68;color:var(--gold)}
+button:active{transform:scale(.96)}
+.card{background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--gold);padding:12px;margin-bottom:10px;position:relative}
+.card.done{border-left-color:var(--ok);opacity:.8}
+.card .n{position:absolute;right:10px;top:6px;font-size:30px;font-weight:900;color:rgba(255,194,14,.25)}
+.card h3{margin:0 0 4px;font-size:17px}.card p{margin:2px 0;color:var(--mut);font-size:13px}
+.dist{color:var(--gold);font-weight:800}
+.row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.row button{padding:7px 10px;font-size:13px}
+input{font:inherit;background:#12072a;border:1px solid var(--line);color:#fff;padding:10px;width:100%}
+.form{background:var(--panel);border:2px solid var(--gold);padding:12px;margin-bottom:12px;display:none}
+.form.on{display:block}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+label{font-size:12px;color:var(--mut)}
+#cam{position:fixed;inset:0;background:#000;z-index:9;display:none;flex-direction:column}
+#cam.on{display:flex}#cam video{flex:1;min-height:0;width:100%;object-fit:cover}
+#cam .row{justify-content:center;padding:14px;background:#1a0b2e}
+#msg{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));background:var(--gold);color:#1a0b2e;font-weight:800;padding:10px;display:none;z-index:10}
+#map{width:100%;height:340px;background:#12072a;border:1px solid var(--line);touch-action:none;display:block;cursor:grab}
+.empty{text-align:center;color:var(--mut);padding:30px}
+</style></head><body>
+<header>
+<svg viewBox="0 0 24 24"><path fill="#ffc20e" stroke="#fff" stroke-width=".6" d="M13 1 3 14h7l-2 9 11-14h-7z"/></svg>
+<h1>PEA Meter Route<small>การไฟฟ้าส่วนภูมิภาค · สำรวจหม้อมิเตอร์</small></h1>
+</header>
+<main>
+<div class="stats"><div class="stat"><b id="sT">0</b><span>ทั้งหมด</span></div><div class="stat"><b id="sD">0</b><span>เสร็จแล้ว</span></div><div class="stat"><b id="sG">—</b><span>สถานะ GPS</span></div></div>
+<div class="bar">
+<button id="bAdd">⚡ เพิ่มจุด / กรอกพิกัด X,Y</button>
+<button class="alt" id="bGps">📍 ใช้ตำแหน่งปัจจุบัน</button>
+<button class="alt" id="bSort">🧭 เรียงตามระยะใกล้</button>
+</div>
+<div class="bar">
+<button class="dk" id="bDir">📁 เลือกโฟลเดอร์บันทึก</button>
+<button class="dk" id="bSave">💾 บันทึกงาน (.xls)</button>
+<button class="dk" id="bLoad">📂 ดึงงานเดิม (.xls)</button>
+<input type="file" id="fLoad" accept=".xls,.xlsx" hidden>
+<input type="file" id="fCam" accept="image/*" capture="environment" hidden>
+</div>
+<p id="dirTxt" style="color:var(--mut);font-size:12px;margin:-4px 0 10px">โฟลเดอร์: ยังไม่ได้เลือก (ไฟล์จะถูกส่งเป็นดาวน์โหลดแทน)</p>
+<div class="form" id="form">
+<label>ชื่อ / รหัสหม้อมิเตอร์</label><input id="iN" placeholder="เช่น TR-001">
+<div class="g"><div><label>X (ลองจิจูด)</label><input id="iX" inputmode="decimal" placeholder="100.7700"></div>
+<div><label>Y (ละติจูด)</label><input id="iY" inputmode="decimal" placeholder="18.7800"></div></div>
+<label>หมายเหตุ</label><input id="iM">
+<div class="row"><button id="bOk">เพิ่มจุด</button><button class="dk" id="bNo">ยกเลิก</button></div>
+</div>
+<div class="form on" id="mapbox" style="padding:8px"><div class="row" style="margin:0 0 6px;align-items:center"><b style="color:var(--gold)">🗺️ แผนที่จุดงาน</b>
+<button class="dk" id="mZi">＋</button><button class="dk" id="mZo">－</button><button class="dk" id="mFit">⟲ ภาพรวม</button><button class="alt" id="mG">🌍 เปิดใน Google Maps</button><button class="dk" id="mHide">ซ่อน</button></div>
+<div id="mapBody"><svg id="map"></svg><p style="font-size:12px;color:var(--mut);margin:6px 0 0">🐢 ตำแหน่งเครื่อง · 🚧 รอดำเนินการ · ✅ เสร็จแล้ว · เส้นประ = ลำดับเส้นทาง · ลากเพื่อเลื่อน</p></div></div>
+<div id="list"></div>
+</main>
+<div id="cam"><video id="vid" playsinline autoplay muted></video><div class="row"><button id="bSnap">📸 ถ่ายภาพ</button><button class="dk" id="bClose">ปิด</button></div></div>
+<div id="msg"></div>
+<script>
+const $=id=>document.getElementById(id);
+let mv={z:1,px:0,py:0,u:1},pts=[],me=null,dir=null,camIdx=null,stream=null,seq=1;
+const KEY="pea_pts_v1";
+try{const s=JSON.parse(localStorage.getItem(KEY)||"[]");if(Array.isArray(s)){pts=s;seq=s.reduce((a,p)=>Math.max(a,p.id+1),1)}}catch(e){}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(pts))}catch(e){}}
+function toast(t){const m=$("msg");m.textContent=t;m.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>m.style.display="none",3500)}
+function hav(a,b,c,d){const R=6371e3,r=Math.PI/180,x=(c-a)*r,y=(d-b)*r;const h=Math.sin(x/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+const fd=m=>m==null?"":m<1000?Math.round(m)+" ม.":(m/1000).toFixed(2)+" กม.";
+function dist(p){return me?hav(me.y,me.x,p.y,p.x):null}
+function sortNear(){
+  const todo=pts.filter(p=>!p.done),done=pts.filter(p=>p.done);
+  let cur=me?{x:me.x,y:me.y}:(todo[0]?{x:todo[0].x,y:todo[0].y}:null),out=[];
+  while(todo.length&&cur){let bi=0,bd=1e18;todo.forEach((p,i)=>{const d=hav(cur.y,cur.x,p.y,p.x);if(d<bd){bd=d;bi=i}});const p=todo.splice(bi,1)[0];out.push(p);cur=p}
+  pts=out.concat(done);persist();render();toast("เรียงลำดับจุดใกล้ → ไกล เรียบร้อย")
+}
+function render(){
+  drawMap();$("sT").textContent=pts.length;$("sD").textContent=pts.filter(p=>p.done).length;
+  const L=$("list");
+  if(!pts.length){L.innerHTML='<div class="empty">⚡ ยังไม่มีจุด กดปุ่ม “เพิ่มจุด” หรือดึงงานเดิมมาทำต่อ</div>';return}
+  L.innerHTML=pts.map((p,i)=>`<div class="card ${p.done?"done":""}"><div class="n">${i+1}</div>
+  <h3>${p.done?"✅ ":"🚧 "}${esc(p.name)}</h3>
+  <p>X: ${p.x} · Y: ${p.y} ${me?`· 🐢 <span class="dist">${fd(dist(p))}</span>`:""}</p>
+  ${p.note?`<p>📝 ${esc(p.note)}</p>`:""}
+  <p>🖼️ รูป ${p.photos.length} ไฟล์ ${p.photos.length?"("+esc(p.photos.slice(-1)[0])+")":""}</p>
+  <div class="row"><button data-a="nav" data-i="${i}">🚗 นำทาง</button><button class="alt" data-a="cam" data-i="${i}">📷 ถ่ายภาพ</button>
+  <button class="dk" data-a="done" data-i="${i}">${p.done?"↩ ยกเลิกเสร็จ":"✔ เสร็จงาน"}</button><button class="dk" data-a="del" data-i="${i}">🗑</button></div></div>`).join("")
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+$("list").onclick=e=>{const b=e.target.closest("button");if(!b)return;const i=+b.dataset.i,p=pts[i],a=b.dataset.a;
+  if(a==="nav")window.open(`https://www.google.com/maps/dir/?api=1&destination=${p.y},${p.x}&travelmode=driving`,"_blank");
+  if(a==="cam")openCam(i);
+  if(a==="done"){p.done=!p.done;persist();render()}
+  if(a==="del"&&confirm("ลบจุดนี้?")){pts.splice(i,1);persist();render()}}
+// add
+function add(name,x,y,note){pts.push({id:seq++,name:name||("จุด "+seq),x,y,note:note||"",done:false,photos:[]})}
+$("bAdd").onclick=()=>$("form").classList.toggle("on");
+$("bNo").onclick=()=>$("form").classList.remove("on");
+$("bOk").onclick=()=>{const x=parseFloat($("iX").value),y=parseFloat($("iY").value);
+  if(isNaN(x)||isNaN(y)||Math.abs(y)>90||Math.abs(x)>180)return toast("พิกัดไม่ถูกต้อง (X=ลองจิจูด, Y=ละติจูด)");
+  add($("iN").value.trim(),x,y,$("iM").value.trim());["iN","iX","iY","iM"].forEach(k=>$(k).value="");persist();render();toast("เพิ่มจุดแล้ว")};
+// GPS
+function gps(){
+  if(!navigator.geolocation){$("sG").textContent="ไม่รองรับ";return}
+  navigator.geolocation.watchPosition(p=>{me={x:p.coords.longitude,y:p.coords.latitude};$("sG").textContent="🐢 ON";render()},
+  e=>{$("sG").textContent="ปิด";toast("เข้าถึงตำแหน่งไม่ได้ — กรุณาอนุญาตตำแหน่งของอุปกรณ์")},{enableHighAccuracy:true,maximumAge:5000})}
+$("bGps").onclick=()=>{if(me){$("iX").value=me.x.toFixed(6);$("iY").value=me.y.toFixed(6);$("form").classList.add("on");toast("ใส่พิกัดปัจจุบันในฟอร์มแล้ว")}else{gps();toast("กำลังขอสิทธิ์ตำแหน่ง...")}};
+$("bSort").onclick=()=>{if(!pts.length)return toast("ยังไม่มีจุด");if(!me)toast("ยังไม่มี GPS จะเริ่มจากจุดแรก");sortNear()};
+// folder
+$("bDir").onclick=async()=>{
+  if(!window.showDirectoryPicker)return toast("เบราว์เซอร์นี้เลือกโฟลเดอร์ไม่ได้ — ไฟล์จะถูกดาวน์โหลดแทน");
+  try{dir=await showDirectoryPicker({mode:"readwrite"});$("dirTxt").textContent="โฟลเดอร์: "+dir.name;toast("เลือกโฟลเดอร์แล้ว")}catch(e){toast("ไม่ได้เลือกโฟลเดอร์")}};
+async function saveFile(name,blob){
+  if(dir){try{const h=await dir.getFileHandle(name,{create:true}),w=await h.createWritable();await w.write(blob);await w.close();return "folder"}catch(e){dir=null;$("dirTxt").textContent="โฟลเดอร์: เขียนไม่ได้ ใช้ดาวน์โหลดแทน"}}
+  try{const d=await claude.use("downloads");if(d){await d.save({filename:name,data:blob});return "download"}}catch(e){if(e&&e.code==="declined")return "declined"}
+  return "fail"}
+// camera
+async function openCam(i){
+  camIdx=i;
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});$("vid").srcObject=stream;$("cam").classList.add("on")}
+  catch(e){toast("เปิดกล้องตรงไม่ได้ ใช้กล้องของเครื่องแทน");$("fCam").click()}}
+function closeCam(){if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$("cam").classList.remove("on")}
+$("bClose").onclick=closeCam;
+async function keepPhoto(blob){const p=pts[camIdx];if(!p)return;
+  const t=new Date(),s=t.toISOString().replace(/[-:T]/g,"").slice(0,14),name=`${p.name.replace(/[^\wก-๙-]/g,"_")}_${s}.jpg`;
+  const r=await saveFile(name,blob);
+  if(r==="fail"||r==="declined")return toast("ยังไม่ได้บันทึกรูป");
+  p.photos.push(name);p.done=true;persist();render();toast("บันทึกรูป "+name+(r==="folder"?" ลงโฟลเดอร์แล้ว":"")) }
+$("bSnap").onclick=()=>{const v=$("vid"),c=document.createElement("canvas");c.width=v.videoWidth;c.height=v.videoHeight;c.getContext("2d").drawImage(v,0,0);
+  c.toBlob(async b=>{closeCam();await keepPhoto(b)},"image/jpeg",.9)};
+$("fCam").onchange=e=>{const f=e.target.files[0];e.target.value="";if(f)keepPhoto(f)};
+// excel
+function wb(){const rows=[["ลำดับ","ชื่อ/รหัส","X (ลองจิจูด)","Y (ละติจูด)","หมายเหตุ","สถานะ","รูปภาพ"]];
+  pts.forEach((p,i)=>rows.push([i+1,p.name,p.x,p.y,p.note,p.done?"เสร็จ":"รอดำเนินการ",p.photos.join(", ")]));
+  const w=XLSX.utils.book_new();XLSX.utils.book_append_sheet(w,XLSX.utils.aoa_to_sheet(rows),"งาน");return w}
+$("bSave").onclick=async()=>{
+  if(!window.XLSX)return toast("โหลดไลบรารี Excel ไม่สำเร็จ");if(!pts.length)return toast("ยังไม่มีข้อมูล");
+  const d=new Date().toISOString().slice(0,10);
+  if(dir){const arr=XLSX.write(wb(),{bookType:"biff8",type:"array"});
+    const r=await saveFile(`PEA_งาน_${d}.xls`,new Blob([arr]));if(r==="folder")return toast("บันทึก .xls ลงโฟลเดอร์แล้ว")}
+  const arr=XLSX.write(wb(),{bookType:"xlsx",type:"array"});
+  const r=await saveFile(`PEA_งาน_${d}.xlsx`,new Blob([arr],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+  if(r==="download")toast("ส่งไฟล์เป็น .xlsx (แพลตฟอร์มนี้ไม่อนุญาตดาวน์โหลด .xls — เลือกโฟลเดอร์เพื่อได้ .xls จริง)")};
+$("bLoad").onclick=()=>$("fLoad").click();
+$("fLoad").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{const w=XLSX.read(await f.arrayBuffer(),{type:"array"}),r=XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1}).slice(1);
+    const n=[];r.forEach(a=>{const x=parseFloat(a[2]),y=parseFloat(a[3]);if(isNaN(x)||isNaN(y))return;
+      n.push({id:seq++,name:String(a[1]||"จุด"),x,y,note:String(a[4]||""),done:a[5]==="เสร็จ",photos:a[6]?String(a[6]).split(/,\s*/):[]})});
+    if(!n.length)return toast("ไม่พบข้อมูลพิกัดในไฟล์");pts=n;persist();render();toast("ดึงงานมา "+n.length+" จุด")}catch(x){toast("อ่านไฟล์ไม่ได้")}};
+// MAP
+function drawMap(){
+  const S=$("map");if(!S||$("mapBody").style.display==="none")return;
+  const W=S.clientWidth||360,H=S.clientHeight||340,all=pts.map(q=>({x:q.x,y:q.y}));if(me)all.push({x:me.x,y:me.y});
+  if(!all.length){S.removeAttribute("viewBox");S.innerHTML='<text x="50%" y="50%" text-anchor="middle" fill="#b9a6d6" font-size="14">ยังไม่มีจุดให้แสดง</text>';return}
+  const k=Math.cos(all.reduce((a,q)=>a+q.y,0)/all.length*Math.PI/180),X=q=>q.x*k,Y=q=>-q.y;
+  const xs=all.map(X),ys=all.map(Y),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  let vw=Math.max(x1-x0,.0008)*1.3,vh=Math.max(y1-y0,.0008)*1.3;if(vw/vh>W/H)vh=vw*H/W;else vw=vh*W/H;
+  vw/=mv.z;vh/=mv.z;const vx=(x0+x1)/2+mv.px-vw/2,vy=(y0+y1)/2+mv.py-vh/2,u=vw/W,fs=u*22;mv.u=u;
+  S.setAttribute("viewBox",`${vx} ${vy} ${vw} ${vh}`);
+  let g="";for(let i=1;i<4;i++){g+=`<line x1="${vx+vw*i/4}" y1="${vy}" x2="${vx+vw*i/4}" y2="${vy+vh}" stroke="#2a1250" stroke-width="${u}"/><line x1="${vx}" y1="${vy+vh*i/4}" x2="${vx+vw}" y2="${vy+vh*i/4}" stroke="#2a1250" stroke-width="${u}"/>`}
+  const pend=pts.filter(q=>!q.done),rt=(me?[me]:[]).concat(pend).map(q=>X(q)+","+Y(q)).join(" ");
+  if(rt.includes(" "))g+=`<polyline points="${rt}" fill="none" stroke="#ffc20e" stroke-width="${u*2.5}" stroke-dasharray="${u*8} ${u*6}" opacity=".85"/>`;
+  pts.forEach((q,i)=>{g+=`<text x="${X(q)}" y="${Y(q)}" font-size="${fs}" text-anchor="middle" dominant-baseline="central">${q.done?"✅":"🚧"}</text>
+  <text x="${X(q)+fs*.75}" y="${Y(q)-fs*.6}" font-size="${fs*.55}" fill="#ffc20e" font-weight="700">${i+1}. ${esc(q.name)}</text>`});
+  if(me)g+=`<text x="${X(me)}" y="${Y(me)}" font-size="${fs*1.15}" text-anchor="middle" dominant-baseline="central">🐢</text>`;
+  S.innerHTML=g}
+(()=>{const S=$("map");let d=null;
+  S.onpointerdown=e=>{d={x:e.clientX,y:e.clientY};S.setPointerCapture(e.pointerId)};
+  S.onpointermove=e=>{if(!d)return;mv.px-=(e.clientX-d.x)*mv.u;mv.py-=(e.clientY-d.y)*mv.u;d={x:e.clientX,y:e.clientY};drawMap()};
+  S.onpointerup=S.onpointercancel=()=>{d=null};
+  window.addEventListener("resize",drawMap)})();
+$("mZi").onclick=()=>{mv.z=Math.min(mv.z*1.5,200);drawMap()};
+$("mZo").onclick=()=>{mv.z=Math.max(mv.z/1.5,.3);drawMap()};
+$("mFit").onclick=()=>{mv.z=1;mv.px=mv.py=0;drawMap()};
+$("mHide").onclick=()=>{const b=$("mapBody"),h=b.style.display==="none";b.style.display=h?"block":"none";$("mHide").textContent=h?"ซ่อน":"แสดง";drawMap()};
+$("mG").onclick=()=>{const pe=pts.filter(q=>!q.done).slice(0,10);if(!pe.length)return toast("ไม่มีจุดที่รอดำเนินการ");
+  const de=pe[pe.length-1],wp=pe.slice(0,-1).map(q=>q.y+","+q.x).join("|");
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${de.y},${de.x}`+(wp?`&waypoints=${encodeURIComponent(wp)}`:"")+(me?`&origin=${me.y},${me.x}`:"")+"&travelmode=driving","_blank")};
+render();gps();
+</script></body></html>
